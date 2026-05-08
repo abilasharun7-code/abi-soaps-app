@@ -40,96 +40,171 @@ export default function App() {
   const [showTheme,  setShowTheme]  = useState(false)
   const [theme,      setTheme]      = useState(() => localStorage.getItem('abi_theme') || 'obsidian-teal')
   const [aiRefresh,  setAiRefresh]  = useState(0)
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('sidebar_open')
+    if (saved !== null) return saved === 'true'
+    return window.innerWidth > 768
+  })
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const isMobile = window.innerWidth <= 768
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('abi_theme', theme)
   }, [theme])
 
+  useEffect(() => {
+    localStorage.setItem('sidebar_open', sidebarOpen)
+  }, [sidebarOpen])
+
+  // Close mobile menu on resize
+  useEffect(() => {
+    function handleResize() {
+      if (window.innerWidth > 768) setMobileMenuOpen(false)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   if (!user) return <Login onLogin={setUser} />
 
-  // Filter nav based on user permissions
   const perms = user.permissions || {}
   const nav = ALL_NAV.filter(n => perms[n.perm] !== false)
-
   const PageComponent = pages[page] || Dashboard
-  const addLabel      = addLabels[page]
-
-  // Track sections to avoid duplicates
+  const addLabel = addLabels[page]
   const renderedSections = new Set()
 
-  return (
-    <div className="app">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-logo">A</div>
+  function navigateTo(id) {
+    setPage(id)
+    setMobileMenuOpen(false)
+  }
+
+  const SidebarContent = ({ collapsed }) => (
+    <>
+      {/* Brand */}
+      <div className={`brand ${collapsed ? 'brand-collapsed' : ''}`}>
+        <div className="brand-logo">A</div>
+        {!collapsed && (
           <div>
             <div className="brand-name">Abi & Muthu Soaps</div>
             <div className="brand-sub">Business Manager</div>
           </div>
-        </div>
+        )}
+      </div>
 
-        <nav className="nav">
-          {nav.map(item => {
-            const showSection = item.section && !renderedSections.has(item.section)
-            if (item.section) renderedSections.add(item.section)
-            return (
-              <div key={item.id}>
-                {showSection && <div className="nav-section">{item.section}</div>}
-                <button
-                  className={`nav-item ${page === item.id ? 'active' : ''}`}
-                  onClick={() => setPage(item.id)}
-                >
-                  <span className="nav-icon">{item.icon}</span>
-                  {item.label}
-                  {item.id === 'status' && (
-                    <span style={{ marginLeft:'auto', width:8, height:8, borderRadius:'50%', background:'var(--green)', boxShadow:'0 0 8px var(--green-glow)', flexShrink:0 }} />
-                  )}
-                  {item.id === 'analytics' && (
-                    <span className="nav-badge" style={{ fontSize:8 }}>NEW</span>
-                  )}
-                </button>
-              </div>
-            )
-          })}
-        </nav>
+      {/* Nav items */}
+      <nav className="nav">
+        {nav.map(item => {
+          const showSection = !collapsed && item.section && !renderedSections.has(item.section)
+          if (item.section) renderedSections.add(item.section)
+          return (
+            <div key={item.id}>
+              {showSection && <div className="nav-section">{item.section}</div>}
+              <button
+                className={`nav-item ${page === item.id ? 'active' : ''} ${collapsed ? 'nav-item-collapsed' : ''}`}
+                onClick={() => navigateTo(item.id)}
+                title={collapsed ? item.label : ''}
+              >
+                <span className="nav-icon">{item.icon}</span>
+                {!collapsed && <span>{item.label}</span>}
+                {!collapsed && item.id === 'status' && (
+                  <span style={{ marginLeft:'auto', width:8, height:8, borderRadius:'50%', background:'var(--green)', boxShadow:'0 0 8px var(--green-glow)', flexShrink:0 }} />
+                )}
+                {!collapsed && item.id === 'analytics' && (
+                  <span className="nav-badge" style={{ fontSize:8 }}>NEW</span>
+                )}
+              </button>
+            </div>
+          )
+        })}
+      </nav>
 
-        <div className="sidebar-bottom">
-          <button className="nav-item ai-btn" onClick={() => setShowAI(true)}>
-            <span className="nav-icon">✦</span>
-            AI Assistant
-            <span className="nav-badge">AI</span>
-          </button>
-          <button className="nav-item" onClick={() => setShowTheme(true)}>
-            <span className="nav-icon">◐</span>
-            Themes
-          </button>
-        </div>
+      {/* Bottom buttons */}
+      <div className={`sidebar-bottom ${collapsed ? 'sidebar-bottom-collapsed' : ''}`}>
+        <button
+          className={`nav-item ai-btn ${collapsed ? 'nav-item-collapsed' : ''}`}
+          onClick={() => { setShowAI(true); setMobileMenuOpen(false) }}
+          title={collapsed ? 'AI Assistant' : ''}
+        >
+          <span className="nav-icon">✦</span>
+          {!collapsed && <><span>AI Assistant</span><span className="nav-badge">AI</span></>}
+        </button>
+        <button
+          className={`nav-item ${collapsed ? 'nav-item-collapsed' : ''}`}
+          onClick={() => { setShowTheme(true); setMobileMenuOpen(false) }}
+          title={collapsed ? 'Themes' : ''}
+        >
+          <span className="nav-icon">◐</span>
+          {!collapsed && <span>Themes</span>}
+        </button>
+      </div>
 
+      {/* Footer pills */}
+      {!collapsed && (
         <div className="sidebar-footer">
           <span className="brand-pill bp-accent">Abi Soaps</span>
           <span className="brand-pill bp-amber">Muthu Soap</span>
         </div>
+      )}
+    </>
+  )
+
+  return (
+    <div className="app">
+      {/* Mobile overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="mobile-overlay"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* DESKTOP SIDEBAR */}
+      <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : 'sidebar-collapsed'} sidebar-desktop`}>
+        {/* Toggle button */}
+        <button
+          className="sidebar-toggle"
+          onClick={() => setSidebarOpen(o => !o)}
+          title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+        >
+          {sidebarOpen ? '◀' : '▶'}
+        </button>
+        <SidebarContent collapsed={!sidebarOpen} />
       </aside>
 
+      {/* MOBILE SIDEBAR DRAWER */}
+      <aside className={`sidebar sidebar-open sidebar-mobile ${mobileMenuOpen ? 'mobile-open' : ''}`}>
+        <SidebarContent collapsed={false} />
+      </aside>
+
+      {/* MAIN */}
       <main className="main">
         <header className="topbar">
           <div className="topbar-left">
-            <div className="page-title">{ALL_NAV.find(n => n.id === page)?.label || 'Dashboard'}</div>
-            <div className="topbar-date">{new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'long', year:'numeric' })}</div>
+            {/* Mobile hamburger */}
+            <button
+              className="hamburger"
+              onClick={() => setMobileMenuOpen(o => !o)}
+            >
+              ☰
+            </button>
+            <div>
+              <div className="page-title">{ALL_NAV.find(n => n.id === page)?.label || 'Dashboard'}</div>
+              <div className="topbar-date">{new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' })}</div>
+            </div>
           </div>
           <div className="topbar-right">
-            <button className="btn-ai" onClick={() => setShowAI(true)}>✦ Ask AI</button>
+            <button className="btn-ai" onClick={() => setShowAI(true)}>✦ <span className="hide-mobile">Ask </span>AI</button>
             {addLabel && (
               <button className="btn primary" onClick={() => setTriggerAdd(t => t + 1)}>
-                + {addLabel}
+                + <span className="hide-mobile">{addLabel}</span>
               </button>
             )}
-            <button className="btn" onClick={() => setPage('account')} style={{ gap:10 }}>
-              <div style={{ width:28, height:28, borderRadius:'50%', background:'var(--accent-dim)', border:'1.5px solid var(--border3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:900, color:'var(--accent)', boxShadow:'var(--glow-sm)', flexShrink:0 }}>
+            <button className="btn user-btn" onClick={() => navigateTo('account')}>
+              <div style={{ width:28, height:28, borderRadius:'50%', background:'var(--accent-dim)', border:'1.5px solid var(--border3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:900, color:'var(--accent)', boxShadow:'var(--glow-sm)', flexShrink:0 }}>
                 {user.name?.[0]?.toUpperCase()}
               </div>
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', gap:1 }}>
+              <div className="hide-mobile" style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', gap:1 }}>
                 <span style={{ fontWeight:800, fontSize:12 }}>{user.name}</span>
                 <span style={{ fontSize:10, color:'var(--text3)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.06em' }}>{user.role}</span>
               </div>
